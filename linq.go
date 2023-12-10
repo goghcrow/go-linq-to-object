@@ -1,6 +1,12 @@
 package linq
 
-type Index = int
+type (
+	Index                           = int
+	Pred[T any]                     func(T) bool
+	PredIdx[T any]                  func(T, Index) bool
+	Selector[Source, Result any]    func(Source) Result
+	SelectorIdx[Source, Result any] func(Source, Index) Result
+)
 
 func SelectMany[A, R any](xs Seq[A], f func(A) Seq[R]) Seq[R] {
 	return Bind[A, R](xs, f)
@@ -9,20 +15,30 @@ func SelectMany[A, R any](xs Seq[A], f func(A) Seq[R]) Seq[R] {
 func SelectManyWithIndex[A, R any](xs Seq[A], f func(A, Index) Seq[R]) Seq[R] {
 	idx := 0
 	return SelectMany(xs, func(a A) (r Seq[R]) {
-		r = f(a, idx)
-		idx++
+		r, idx = f(a, idx), idx+1
 		return
 	})
 }
 
 // Select aka map
-func Select[A, R any](xs Seq[A], f func(A) R) Seq[R] {
+func Select[A, R any](xs Seq[A], f Selector[A, R]) Seq[R] {
 	return SelectWithIndex(xs, func(x A, _ Index) R {
 		return f(x)
 	})
 }
 
-func SelectWithIndex[A, R any](xs Seq[A], f func(A, Index) R) Seq[R] {
+func SelectWithIndex[A, R any](xs Seq[A], f SelectorIdx[A, R]) Seq[R] {
+	// // e.g.
+	// i := 0
+	// return SeqOf(func() (r R, ok bool) {
+	// 	x, ok := xs.Next()
+	// 	if !ok {
+	// 		return
+	// 	}
+	// 	r, ok, i = f(x, i), true, i+1
+	// 	return
+	// })
+
 	return SelectManyWithIndex(xs, func(x A, i Index) Seq[R] {
 		return Return(f(x, i))
 	})
@@ -32,17 +48,17 @@ func First[A any](xs Seq[A]) (A, bool) {
 	return Take(xs, 1).Next()
 }
 
-func FirstWhile[A any](xs Seq[A], f func(A) bool) (A, bool) {
-	return TakeWhile(xs, f).Next()
+func FirstWhile[A any](xs Seq[A], p Pred[A]) (A, bool) {
+	return TakeWhile(xs, p).Next()
 }
 
 func Last[A any](xs Seq[A]) (last A, ok bool) {
 	return LastWhile(xs, Const[A](true))
 }
 
-func LastWhile[A any](xs Seq[A], f func(A) bool) (last A, ok bool) {
+func LastWhile[A any](xs Seq[A], p Pred[A]) (last A, ok bool) {
 	Iterate(xs, func(x A) {
-		if f(x) {
+		if p(x) {
 			ok = true
 			last = x
 		}
@@ -50,15 +66,15 @@ func LastWhile[A any](xs Seq[A], f func(A) bool) (last A, ok bool) {
 	return
 }
 
-func Where[A any](xs Seq[A], f func(A) bool) Seq[A] {
+func Where[A any](xs Seq[A], p Pred[A]) Seq[A] {
 	return WhereWithIndex(xs, func(x A, _ Index) bool {
-		return f(x)
+		return p(x)
 	})
 }
 
-func WhereWithIndex[A any](xs Seq[A], f func(A, Index) bool) Seq[A] {
+func WhereWithIndex[A any](xs Seq[A], p PredIdx[A]) Seq[A] {
 	return SelectManyWithIndex(xs, func(x A, i Index) Seq[A] {
-		if f(x, i) {
+		if p(x, i) {
 			return Return(x)
 		}
 		return nil
@@ -75,14 +91,14 @@ func Take[A any](xs Seq[A], cnt int) Seq[A] {
 	})
 }
 
-func TakeWhile[A any](xs Seq[A], f func(A) bool) Seq[A] {
+func TakeWhile[A any](xs Seq[A], p Pred[A]) Seq[A] {
 	return TakeWhileWithIndex(xs, func(x A, _ Index) bool {
-		return f(x)
+		return p(x)
 	})
 }
 
-func TakeWhileWithIndex[A any](xs Seq[A], f func(A, Index) bool) Seq[A] {
-	return WhereWithIndex(xs, f)
+func TakeWhileWithIndex[A any](xs Seq[A], p PredIdx[A]) Seq[A] {
+	return WhereWithIndex(xs, p)
 }
 
 func Skip[A any](xs Seq[A], cnt int) Seq[A] {
@@ -95,15 +111,15 @@ func Skip[A any](xs Seq[A], cnt int) Seq[A] {
 	})
 }
 
-func SkipWhile[A any](xs Seq[A], f func(A) bool) Seq[A] {
+func SkipWhile[A any](xs Seq[A], p Pred[A]) Seq[A] {
 	return SkipWhileWithIndex(xs, func(x A, _ Index) bool {
-		return f(x)
+		return p(x)
 	})
 }
 
-func SkipWhileWithIndex[A any](xs Seq[A], f func(A, Index) bool) Seq[A] {
+func SkipWhileWithIndex[A any](xs Seq[A], p PredIdx[A]) Seq[A] {
 	return SelectManyWithIndex(xs, func(x A, i Index) Seq[A] {
-		if f(x, i) {
+		if p(x, i) {
 			return nil
 		}
 		return Return(x)
@@ -114,7 +130,7 @@ func Aggregate[A, B, R any](
 	xs Seq[A],
 	init B,
 	f func(acc B, cur A) B,
-	selector func(B) R,
+	selector Selector[B, R],
 ) (r R) {
 	acc := init
 	Iterate(xs, func(x A) {
@@ -143,6 +159,55 @@ func Reduce[A any](xs Seq[A], f func(acc A, cur A) A) (r A, ok bool) {
 	})
 	ok = true
 	return
+}
+
+func All[A any](xs Seq[A], p Pred[A]) (r bool) {
+	r = true
+	for {
+		x, ok := xs.Next()
+		if !ok {
+			break
+		}
+		r = r && p(x)
+		if !r {
+			break
+		}
+	}
+	return
+}
+
+func AnyElem[A any](xs Seq[A]) bool {
+	_, ok := xs.Next()
+	return ok
+}
+
+func Any[A any](xs Seq[A], p Pred[A]) (r bool) {
+	for {
+		x, ok := xs.Next()
+		if !ok {
+			break
+		}
+		r = r || p(x)
+		if r {
+			break
+		}
+	}
+	return
+}
+
+func Append[A any](xs Seq[A], a A) Seq[A] {
+	end := false
+	return SeqOf(func() (x A, ok bool) {
+		if end {
+			return
+		}
+		x, ok = xs.Next()
+		if !ok {
+			end = true
+			return a, true
+		}
+		return
+	})
 }
 
 func Iterate[T any](xs Seq[T], f func(T)) {

@@ -2,9 +2,13 @@ package linq
 
 import (
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
+
+// tests ref
+// https://learn.microsoft.com/en-us/dotnet/api/system.linq.enumerable.aggregate?view=net-8.0
 
 type (
 	Signed interface {
@@ -18,11 +22,17 @@ type (
 	Number  interface{ Integer | Float }
 )
 
-func eq[A comparable](n A) func(A) bool { return func(x A) bool { return x == n } }
-func lt[N Number](n N) func(N) bool     { return func(x N) bool { return x < n } }
-func gt[N Number](n N) func(N) bool     { return func(x N) bool { return x > n } }
-func le[N Number](n N) func(N) bool     { return func(x N) bool { return x <= n } }
-func ge[N Number](n N) func(N) bool     { return func(x N) bool { return x >= n } }
+func eq[A comparable](n A) Pred[A] { return func(x A) bool { return x == n } }
+func lt[N Number](n N) Pred[N]     { return func(x N) bool { return x < n } }
+func gt[N Number](n N) Pred[N]     { return func(x N) bool { return x > n } }
+func le[N Number](n N) Pred[N]     { return func(x N) bool { return x <= n } }
+func ge[N Number](n N) Pred[N]     { return func(x N) bool { return x >= n } }
+
+func startsWith(prefix string) Pred[string] {
+	return func(s string) bool {
+		return strings.HasPrefix(s, prefix)
+	}
+}
 
 func isEven(x int) bool { return x%2 == 0 }
 func square(x int) int  { return x * x }
@@ -43,7 +53,7 @@ func TestDeferred(t *testing.T) {
 
 func TestOnce(t *testing.T) {
 	{
-		xs := Of(1, 2, 3)
+		xs := From(1, 2, 3)
 		ys := Select(xs, Id[int])
 		assertEqual(t, ToSlice(ys), []int{1, 2, 3})
 
@@ -53,8 +63,8 @@ func TestOnce(t *testing.T) {
 
 	{
 		type T = Cons[string, int]
-		xs := OfSlice([]string{"a", "b", "c"})
-		ys := OfSlice([]int{1, 2, 3})
+		xs := FromSlice([]string{"a", "b", "c"})
+		ys := FromSlice([]int{1, 2, 3})
 		zs := SelectMany(xs, func(x string) Seq[T] {
 			return SelectMany(ys, func(y int) Seq[T] {
 				return Return(T{x, y})
@@ -67,13 +77,13 @@ func TestOnce(t *testing.T) {
 }
 
 func TestSelect(t *testing.T) {
-	xs := Of(1, 2, 3)
+	xs := From(1, 2, 3)
 	ys := Select(xs, square)
 	assertEqual(t, ToSlice(ys), []int{1, 4, 9})
 }
 
 func TestSelectWithIndex(t *testing.T) {
-	xs := Of(1, 2, 3)
+	xs := From(1, 2, 3)
 	ys := SelectWithIndex(xs, func(a int, i Index) int {
 		return a + i
 	})
@@ -134,7 +144,7 @@ func TestTakeWhileWithIndex(t *testing.T) {
 }
 
 func TestFirst(t *testing.T) {
-	xs := OfSlice([]int{9, 34, 65, 92, 87, 435, 3, 54,
+	xs := FromSlice([]int{9, 34, 65, 92, 87, 435, 3, 54,
 		83, 23, 87, 435, 67, 12, 19})
 	first, ok := First(xs)
 	assertEqual(t, first, 9)
@@ -142,7 +152,7 @@ func TestFirst(t *testing.T) {
 }
 
 func TestFirstWhile(t *testing.T) {
-	xs := OfSlice([]int{9, 34, 65, 92, 87, 435, 3, 54,
+	xs := FromSlice([]int{9, 34, 65, 92, 87, 435, 3, 54,
 		83, 23, 87, 435, 67, 12, 19})
 	first, ok := FirstWhile(xs, gt(80))
 	assertEqual(t, first, 92)
@@ -150,7 +160,7 @@ func TestFirstWhile(t *testing.T) {
 }
 
 func TestLast(t *testing.T) {
-	xs := OfSlice([]int{9, 34, 65, 92, 87, 435, 3, 54,
+	xs := FromSlice([]int{9, 34, 65, 92, 87, 435, 3, 54,
 		83, 23, 87, 67, 12, 19})
 	first, ok := Last(xs)
 	assertEqual(t, first, 19)
@@ -158,7 +168,7 @@ func TestLast(t *testing.T) {
 }
 
 func TestLastWhile(t *testing.T) {
-	xs := OfSlice([]int{9, 34, 65, 92, 87, 435, 3, 54,
+	xs := FromSlice([]int{9, 34, 65, 92, 87, 435, 3, 54,
 		83, 23, 87, 67, 12, 19})
 	first, ok := LastWhile(xs, gt(80))
 	assertEqual(t, first, 87)
@@ -166,7 +176,7 @@ func TestLastWhile(t *testing.T) {
 }
 
 func TestAggregate(t *testing.T) {
-	fruits := Of("apple", "mango", "orange", "passionfruit", "grape")
+	fruits := From("apple", "mango", "orange", "passionfruit", "grape")
 	s := Aggregate[string, string](fruits, "banana", func(longest string, next string) string {
 		if len(next) > len(longest) {
 			return next
@@ -179,7 +189,7 @@ func TestAggregate(t *testing.T) {
 
 func TestFold(t *testing.T) {
 	{
-		xs := OfSlice([]int{1, 4, 5})
+		xs := FromSlice([]int{1, 4, 5})
 		r := Fold(xs, 5, func(acc int, cur int) int {
 			return acc*2 + cur
 		})
@@ -187,7 +197,7 @@ func TestFold(t *testing.T) {
 	}
 
 	{
-		xs := OfSlice([]int{4, 8, 8, 3, 9, 0, 7, 8, 2})
+		xs := FromSlice([]int{4, 8, 8, 3, 9, 0, 7, 8, 2})
 		r := Fold(xs, 0, func(total int, cur int) int {
 			if isEven(cur) {
 				return total + 1
@@ -201,11 +211,203 @@ func TestFold(t *testing.T) {
 func TestReduce(t *testing.T) {
 	sentence := "the quick brown fox jumps over the lazy dog"
 	words := strings.Split(sentence, " ")
-	reversed, ok := Reduce(OfSlice(words), func(acc string, cur string) string {
+	reversed, ok := Reduce(FromSlice(words), func(acc string, cur string) string {
 		return cur + " " + acc
 	})
 	assertEqual(t, ok, true)
 	assertEqual(t, reversed, "dog lazy the over jumps fox brown quick the")
+}
+
+func TestAll(t *testing.T) {
+	{
+		pets := []string{"Barley", "Boots", "Whiskers"}
+		allStartWithB := All(FromSlice(pets), startsWith("B"))
+		assertEqual(t, allStartWithB, false)
+	}
+	{
+		pets := []string{"Barley", "Boots"}
+		allStartWithB := All(FromSlice(pets), startsWith("B"))
+		assertEqual(t, allStartWithB, true)
+	}
+}
+
+func TestAllEx(t *testing.T) {
+	type Pet struct {
+		Name string
+		Age  int
+	}
+	type Person struct {
+		LastName string
+		Pets     []Pet
+	}
+
+	people := []Person{
+		{
+			LastName: "Haas",
+			Pets: []Pet{
+				{"Barley", 10},
+				{"Boots", 14},
+				{"Whiskers", 6},
+			},
+		},
+		{
+			LastName: "Fakhouri",
+			Pets: []Pet{
+				{"Snowball", 1},
+			},
+		},
+		{
+			LastName: "Antebi",
+			Pets: []Pet{
+				{"Belle", 8},
+			},
+		},
+		{
+			LastName: "Philips",
+			Pets: []Pet{
+				{"Sweetie", 2},
+				{"Rover", 13},
+			},
+		},
+	}
+
+	petAgeGt5 := func(pet Pet) bool {
+		return pet.Age > 5
+	}
+	personLastName := func(person Person) string {
+		return person.LastName
+	}
+	// Determine which people have pets that are all older than 5.
+	// IEnumerable<string> names = from person in people
+	//                             where person.Pets.All(pet => pet.Age > 5)
+	//                             select person.LastName;
+	names := Select(
+		Where(
+			FromSlice(people),
+			func(person Person) bool {
+				return All(
+					FromSlice(person.Pets),
+					petAgeGt5,
+				)
+			},
+		),
+		personLastName,
+	)
+
+	assertEqual(t, ToSlice(names), []string{
+		"Haas",
+		"Antebi",
+	})
+}
+
+func TestAnyElem(t *testing.T) {
+	xs := From(1, 2)
+	assertEqual(t, AnyElem(xs), true)
+}
+
+func TestAnyElemEx(t *testing.T) {
+	type Pet struct {
+		Name string
+		Age  int
+	}
+	type Person struct {
+		LastName string
+		Pets     []Pet
+	}
+
+	people := []Person{
+		{
+			LastName: "Haas",
+			Pets: []Pet{
+				{"Barley", 10},
+				{"Boots", 14},
+				{"Whiskers", 6},
+			},
+		},
+		{
+			LastName: "Fakhouri",
+			Pets: []Pet{
+				{"Snowball", 1},
+			},
+		},
+		{
+			LastName: "Antebi",
+			Pets:     []Pet{
+				// {"Belle", 8},
+			},
+		},
+		{
+			LastName: "Philips",
+			Pets: []Pet{
+				{"Sweetie", 2},
+				{"Rover", 13},
+			},
+		},
+	}
+
+	personLastName := func(person Person) string {
+		return person.LastName
+	}
+
+	// Determine which people have a non-empty Pet array.
+	// IEnumerable<string> names = from person in people
+	//                             where person.Pets.Any()
+	//                             select person.LastName;
+	names := Select(
+		Where(
+			FromSlice(people),
+			func(person Person) bool {
+				return AnyElem(
+					FromSlice(person.Pets),
+				)
+			},
+		),
+		personLastName,
+	)
+
+	assertEqual(t, ToSlice(names), []string{
+		"Haas",
+		"Fakhouri",
+		"Philips",
+	})
+}
+
+func TestAny(t *testing.T) {
+	type Pet struct {
+		Name       string
+		Age        int
+		Vaccinated bool
+	}
+
+	//    // Determine whether any pets over age 1 are also unvaccinated.
+	//    bool unvaccinated = pets.Any(p => p.Age > 1 && p.Vaccinated == false)
+	pets := []Pet{
+		{"Barley", 8, true},
+		{"Boots", 4, false},
+		{"Whiskers", 1, false},
+	}
+	unvaccinated := Any(
+		FromSlice(pets),
+		func(pet Pet) bool {
+			return pet.Age > 1 && !pet.Vaccinated
+		},
+	)
+	assertEqual(t, unvaccinated, true)
+}
+
+func TestAppend(t *testing.T) {
+	xs := []int{1, 2, 3, 4}
+
+	ys := Append(FromSlice(xs), 5)
+
+	assertEqual(t,
+		strings.Join(ToSlice(Select(FromSlice(xs), strconv.Itoa)), ", "),
+		"1, 2, 3, 4",
+	)
+	assertEqual(t,
+		strings.Join(ToSlice(Select(ys, strconv.Itoa)), ", "),
+		"1, 2, 3, 4, 5",
+	)
 }
 
 // left outer join
@@ -219,8 +421,8 @@ func TestCrossJoin(t *testing.T) {
 	xs := []string{"a", "b", "c"}
 	ys := []int{1, 2, 3}
 
-	zs := SelectMany(OfSlice(xs), func(x string) Seq[T] {
-		return SelectMany(OfSlice(ys), func(y int) Seq[T] {
+	zs := SelectMany(FromSlice(xs), func(x string) Seq[T] {
+		return SelectMany(FromSlice(ys), func(y int) Seq[T] {
 			return Return(T{x, y})
 		})
 	})

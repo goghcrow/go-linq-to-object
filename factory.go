@@ -1,10 +1,10 @@
 package linq
 
-func SeqOf[T any](f func() (T, bool)) Seq[T] {
-	return fSeq[T](f)
+func SeqOf[T any](f FSeq[T]) Seq[T] {
+	return f
 }
 
-func Of[T any](xs ...T) Seq[T] {
+func From[T any](xs ...T) Seq[T] {
 	// return &SliceSeq[T]{xs: xs}
 	var i int
 	return SeqOf[T](func() (x T, ok bool) {
@@ -16,17 +16,17 @@ func Of[T any](xs ...T) Seq[T] {
 	})
 }
 
-func OfSlice[T any](xs []T) Seq[T] {
-	// return Of(xs...)
+func FromSlice[T any](xs []T) Seq[T] {
+	// return From(xs...)
 	return &SliceSeq[T]{xs: xs}
 }
 
-func OfMap[K comparable, V any](xs map[K]V) Seq[Cons[K, V]] {
+func FromMap[K comparable, V any](xs map[K]V) Seq[Cons[K, V]] {
 	var ks []K
 	for k := range xs {
 		ks = append(ks, k)
 	}
-	return Select(OfSlice(ks), func(x K) Cons[K, V] {
+	return Select(FromSlice(ks), func(x K) Cons[K, V] {
 		return Cons[K, V]{x, xs[x]}
 	})
 }

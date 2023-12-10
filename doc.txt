@@ -1,0 +1,53 @@
+ diff
+ ------------------------------------------------------------
+ golang
+      	       Bind(x, 	func(a int) Maybe[int] {
+		return Bind(y,  func(b int) Maybe[int] {
+		return Just[int](a + b)
+		})
+ })
+
+ C#
+ from a in x
+ from b in y
+ select a + b
+
+ haskell
+ z = do {
+   a <- x
+   b <- y
+   Return(Just(a + b))
+ }
+
+ scala
+ for {
+   a <- x
+   b <- y
+ } yield Just(a + b)
+
+ ------------------------------------------------------------
+
+ golang
+      	       Bind(items, 	   func(inner T) Seq[T] {
+		return Bind(f(items),  func(outer T) Seq[T] {
+		return Unit(projection(inner, outer))
+		})
+ })
+
+ C#
+ from inner in items
+ from outer in function(items)
+ select projection(inner, outer)
+
+ haskell
+ do {
+      inner <- items
+	  outer <- function(inner)
+      Return(projection(inner, outer))
+ }
+
+ scala
+ for {
+      inner <- items
+	  outer <- function(inner)
+  } yield projection(inner, outer)

@@ -9,9 +9,9 @@ type Seq[T any] interface {
 // ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
 // Fun Sequence Implementations
 
-type fSeq[T any] func() (T, bool)
+type FSeq[T any] func() (T, bool)
 
-func (f fSeq[T]) Next() (T, bool) { return f() }
+func (f FSeq[T]) Next() (T, bool) { return f() }
 
 // ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
 // Slice Sequence Implementations
