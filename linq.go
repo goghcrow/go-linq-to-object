@@ -3,9 +3,9 @@ package linq
 type (
 	Index                           = int
 	Pred[T any]                     func(T) bool
-	PredIdx[T any]                  func(T, Index) bool
+	IdxPred[T any]                  func(T, Index) bool
 	Selector[Source, Result any]    func(Source) Result
-	SelectorIdx[Source, Result any] func(Source, Index) Result
+	IdxSelector[Source, Result any] func(Source, Index) Result
 )
 
 func SelectMany[A, R any](xs Seq[A], f func(A) Seq[R]) Seq[R] {
@@ -27,7 +27,7 @@ func Select[A, R any](xs Seq[A], f Selector[A, R]) Seq[R] {
 	})
 }
 
-func SelectWithIndex[A, R any](xs Seq[A], f SelectorIdx[A, R]) Seq[R] {
+func SelectWithIndex[A, R any](xs Seq[A], f IdxSelector[A, R]) Seq[R] {
 	// // e.g.
 	// i := 0
 	// return SeqOf(func() (r R, ok bool) {
@@ -72,7 +72,7 @@ func Where[A any](xs Seq[A], p Pred[A]) Seq[A] {
 	})
 }
 
-func WhereWithIndex[A any](xs Seq[A], p PredIdx[A]) Seq[A] {
+func WhereWithIndex[A any](xs Seq[A], p IdxPred[A]) Seq[A] {
 	return SelectManyWithIndex(xs, func(x A, i Index) Seq[A] {
 		if p(x, i) {
 			return Return(x)
@@ -97,7 +97,7 @@ func TakeWhile[A any](xs Seq[A], p Pred[A]) Seq[A] {
 	})
 }
 
-func TakeWhileWithIndex[A any](xs Seq[A], p PredIdx[A]) Seq[A] {
+func TakeWhileWithIndex[A any](xs Seq[A], p IdxPred[A]) Seq[A] {
 	return WhereWithIndex(xs, p)
 }
 
@@ -117,7 +117,7 @@ func SkipWhile[A any](xs Seq[A], p Pred[A]) Seq[A] {
 	})
 }
 
-func SkipWhileWithIndex[A any](xs Seq[A], p PredIdx[A]) Seq[A] {
+func SkipWhileWithIndex[A any](xs Seq[A], p IdxPred[A]) Seq[A] {
 	return SelectManyWithIndex(xs, func(x A, i Index) Seq[A] {
 		if p(x, i) {
 			return nil
